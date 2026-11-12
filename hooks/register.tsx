@@ -28,7 +28,7 @@ const looksOf = (type: string) => {
 // Flowchart geometry, in terminal columns.
 const CARD = 24
 const GAP = 2
-const MAX_KIDS = 6 // ponytail: wider fan-outs show "+N more"; page them if that gets common
+const MAX_KIDS = 24 // ponytail: bigger fan-outs show "+N more"; page them if that gets common
 const MAX_NODES = 150 // oldest tasks fall off first
 
 const patch = (id: string | undefined, fn: (n: CrewNode) => CrewNode) => (list: CrewNode[]) =>
@@ -179,11 +179,25 @@ export const register: Register = on => {
       return s ? 'running' : n.status
     }
 
+    // Children wrap onto a new row once the next one would pass the pane's width.
+    const avail = Math.max(CARD, (e.viewport?.columns ?? 80) - 2)
+    const rowsOf = (n: CrewNode): CrewNode[][] => {
+      const rows: CrewNode[][] = []
+      let used = avail + 1
+      for (const k of kidsOf(n.id).slice(0, MAX_KIDS)) {
+        const w = widthOf(k)
+        if (used + GAP + w > avail) rows.push([]), (used = -GAP)
+        rows[rows.length - 1]!.push(k)
+        used += GAP + w
+      }
+      return rows
+    }
+
     const widthOf = (n: CrewNode): number => {
       const hit = widths.get(n.id)
       if (hit !== undefined) return hit
-      const kids = kidsOf(n.id).slice(0, MAX_KIDS)
-      const w = kids.length ? Math.max(CARD, kids.reduce((s, k) => s + widthOf(k), 0) + GAP * (kids.length - 1)) : CARD
+      const rows = rowsOf(n)
+      const w = Math.max(CARD, ...rows.map(r => r.reduce((s, k) => s + widthOf(k), 0) + GAP * (r.length - 1)))
       widths.set(n.id, w)
       return w
     }
@@ -213,31 +227,36 @@ export const register: Register = on => {
 
     const flow = (n: CrewNode): RenderChildren => {
       const all = kidsOf(n.id)
-      const kids = all.slice(0, MAX_KIDS)
+      const rows = rowsOf(n)
       const width = widthOf(n)
-      let x = 0
-      const centers = kids.map(k => {
-        const w = widthOf(k)
-        const c = x + Math.floor(w / 2)
-        x += w + GAP
-        return c
-      })
+      const shown = rows.reduce((s, r) => s + r.length, 0)
       return (
         <Box flexDirection="column" alignItems="center" width={width}>
           {card(n)}
-          {kids.length > 0 && <Text dimColor>│</Text>}
-          {kids.length > 1 && <Text dimColor>{fanLine(centers, width)}</Text>}
-          {kids.length > 0 && (
-            <Box flexDirection="row" gap={GAP} alignItems="flex-start">
-              {kids.map(k => (
-                <Box key={k.id} flexDirection="column" alignItems="center" width={widthOf(k)}>
-                  <Text dimColor>▼</Text>
-                  {flow(k)}
+          {rows.map((row, i) => {
+            const rowWidth = row.reduce((s, k) => s + widthOf(k), 0) + GAP * (row.length - 1)
+            let x = 0
+            const centers = row.map(k => {
+              const c = x + Math.floor(widthOf(k) / 2)
+              x += widthOf(k) + GAP
+              return c
+            })
+            return (
+              <Box key={row[0]!.id} flexDirection="column" alignItems="center" width={width}>
+                <Text dimColor>{i === 0 ? '│' : '┆'}</Text>
+                {row.length > 1 && <Text dimColor>{fanLine(centers, rowWidth)}</Text>}
+                <Box flexDirection="row" gap={GAP} alignItems="flex-start">
+                  {row.map(k => (
+                    <Box key={k.id} flexDirection="column" alignItems="center" width={widthOf(k)}>
+                      <Text dimColor>▼</Text>
+                      {flow(k)}
+                    </Box>
+                  ))}
                 </Box>
-              ))}
-            </Box>
-          )}
-          {all.length > kids.length && <Text dimColor>{`+${all.length - kids.length} more`}</Text>}
+              </Box>
+            )
+          })}
+          {all.length > shown && <Text dimColor>{`+${all.length - shown} more`}</Text>}
         </Box>
       )
     }
