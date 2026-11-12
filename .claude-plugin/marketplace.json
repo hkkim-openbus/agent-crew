@@ -1,0 +1,5 @@
+{
+  "name": "agent-crew",
+  "owner": { "name": "hkkim-openbus" },
+  "plugins": [{ "name": "agent-crew", "source": "./" }]
+}
