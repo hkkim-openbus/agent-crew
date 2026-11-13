@@ -1,1 +1,1 @@
-{ "name": "agent-crew", "version": "0.1.0", "description": "Live flowchart of agents, skills, models and worktrees per prompt", "types": "./types/index.d.ts" }
+{ "name": "agent-crew", "version": "0.2.0", "description": "Live flowchart of agents, skills, models and worktrees per prompt", "types": "./types/index.d.ts" }
